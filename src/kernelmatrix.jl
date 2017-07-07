@@ -17,7 +17,7 @@ end
 ================================================#
 
 function kappamatrix!(κ::Kernel{T}, P::AbstractMatrix{T}) where {T<:AbstractFloat}
-    for i in eachindex(P)
+    Threads.@threads for i in 1:length(P)
         @inbounds P[i] = kappa(κ, P[i])
     end
     P
@@ -31,8 +31,12 @@ function symmetric_kappamatrix!(
     if !((n = size(P,1)) == size(P,2))
         throw(DimensionMismatch("Pairwise matrix must be square."))
     end
-    for j = 1:n, i = (1:j)
-        @inbounds P[i,j] = kappa(κ, P[i,j])
+    # this @threads macro causes threading to fail. When there is an error (e.g.
+    # sqrt(x) with x < 0) no error is raised, the loop simply stops.
+    Threads.@threads for j in 1:n
+        for i in 1:j
+            @inbounds P[i, j] = kappa(κ, P[i, j])
+        end
     end
     symmetrize ? LinearAlgebra.copytri!(P, 'U') : P
 end

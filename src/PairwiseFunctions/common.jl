@@ -16,9 +16,33 @@ for layout in (RowMajor, ColumnMajor)
                 throw(DimensionMismatch(errorstring))
             end
             fill!(xᵀx, zero(T))
-            for I in Base.Cartesian.CartesianIndices(size(X))
-                xᵀx[I.I[$dim_obs]] += X[I]^2
+            # TODO: is this better? I think this needs to be like this for thread safety
+            # NOTE: this is 25% faster than the cartesian range loop, without threading
+            # info("loop")
+            # for i in 1:size(X, 2)
+            #     for j in 1:size(X, 1)
+            #         xᵀx[$isrowmajor ? j : i] += X[j, i] ^ 2
+            #     end
+            # end
+            if !$isrowmajor
+                Threads.@threads for i in 1:size(X, 2)
+                    for j in 1:size(X, 1)
+                        xᵀx[i] += X[j, i] ^ 2
+                    end
+                end
+            else
+                for i in 1:size(X, 2)
+                    # Here @threads does not help!
+                    for j in 1:size(X, 1)
+                        xᵀx[j] += X[j, i] ^ 2
+                    end
+                end
             end
+
+            # info("cart loop")
+            # @time for I in CartesianRange(size(X))
+            #     xᵀx[I.I[$dim_obs]] += X[I]^2
+            # end
             xᵀx
         end
 

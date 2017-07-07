@@ -118,7 +118,7 @@ function pairwisematrix!(
         symmetrize::Bool
     ) where {T<:AbstractFloat}
     n = checkdimensions(σ, P, X)
-    for j = 1:n
+    Threads.@threads for j = 1:n
         xj = subvector(σ, X, j)
         for i = 1:j
             xi = subvector(σ, X, i)
@@ -136,7 +136,7 @@ function pairwisematrix!(
         Y::AbstractMatrix{T},
     ) where {T<:AbstractFloat}
     n, m = checkdimensions(σ, P, X, Y)
-    for j = 1:m
+    Threads.@threads for j = 1:m
         yj = subvector(σ, Y, j)
         for i = 1:n
             xi = subvector(σ, X, i)
@@ -214,18 +214,21 @@ end
 ===================================================================================================#
 
 function squared_distance!(G::Matrix{T}, xᵀx::Vector{T}, symmetrize::Bool) where {T<:AbstractFloat}
-    if !((n = size(G,1)) == size(G,2))
+    n, m = size(G)
+    if n != m
         throw(DimensionMismatch("Gramian matrix must be square."))
     end
     if length(xᵀx) != n
         throw(DimensionMismatch("Length of xᵀx must match order of G"))
     end
-    @inbounds for j = 1:n
-        xᵀx_j = xᵀx[j]
-        for i = 1:(j-1)
-            G[i,j] = (xᵀx[i] + xᵀx_j) - 2G[i,j]
+    Threads.@threads for j = 1:n
+        @inbounds begin
+            xᵀx_j = xᵀx[j]
+            for i = 1:(j-1)
+                G[i,j] = (xᵀx[i] + xᵀx_j) - 2G[i,j]
+            end
+            G[j,j] = zero(T)
         end
-        G[j,j] = zero(T)
     end
     symmetrize ? LinearAlgebra.copytri!(G, 'U') : G
 end
@@ -237,10 +240,12 @@ function squared_distance!(G::Matrix{T}, xᵀx::Vector{T}, yᵀy::Vector{T}) whe
     elseif length(yᵀy) != m
         throw(DimensionMismatch("Length of yᵀy must match columns of G"))
     end
-    @inbounds for j = 1:m
-        yᵀy_j = yᵀy[j]
-        for i = 1:n
-            G[i,j] = (xᵀx[i] + yᵀy_j) - 2G[i,j]
+    Threads.@threads for j in 1:m
+        @inbounds begin
+            yᵀy_j = yᵀy[j]
+            for i = 1:n
+                G[i,j] = (xᵀx[i] + yᵀy_j) - 2G[i,j]
+            end
         end
     end
     G
